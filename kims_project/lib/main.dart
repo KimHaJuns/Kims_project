@@ -29,6 +29,33 @@ class CalendarPage extends StatefulWidget {
 }
 
 class _CalendarPageState extends State<CalendarPage> {
+  Future<void> _handleFilePick(BuildContext context, void Function(void Function()) setModalState) async {
+  final result = await FilePicker.platform.pickFiles(
+    type: FileType.any
+  );
+
+  if (!context.mounted) return;
+
+  if (result != null && result.files.isNotEmpty) {
+    final pickedFile = result.files.first;
+    final ext = pickedFile.name.split('.').last.toLowerCase();
+
+    if (['png', 'jpg', 'jpeg', 'pdf'].contains(ext)) {
+      setModalState(() {
+        _selectedFile = pickedFile;
+      });
+    } else {
+      // ❌ 그 외 확장자는 무시 + 경고 메시지 출력
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('이미지(png, jpg, jpeg) 또는 PDF 파일만 선택할 수 있습니다.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+}
+
   DateTime _focusedMonth = DateTime.now();
   final Map<String, List<String>> _events = {};
 
@@ -134,17 +161,21 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Future<void> _showFilePickerSheet() async {
-    _selectedFile = null; // 초기화
+  _selectedFile = null; // 초기화
 
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) {
-        return StatefulBuilder(builder: (context, setModalState) {
-          return Padding(
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (context, setModalState) {
+          return Container(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.6,
+            ),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: MainAxisSize.max,
               children: [
                 Row(
                   children: [
@@ -155,24 +186,27 @@ class _CalendarPageState extends State<CalendarPage> {
                     ),
                   ],
                 ),
-                ElevatedButton(
-                  onPressed: () async {
-                    final result = await FilePicker.platform.pickFiles();
-                    if (result != null && result.files.isNotEmpty) {
-                      setModalState(() {
-                        _selectedFile = result.files.first;
-                      });
-                    }
-                  },
-                  child: const Text('파일 선택하기'),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                   ElevatedButton(
+                      onPressed: () => _handleFilePick(context, setModalState),  // context를 안전하게 전달
+                      child: const Text('파일 선택'),
+                    ),
+
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: Text(
+                        _selectedFile != null
+                            ? _selectedFile!.name
+                            : '선택된 파일 없음',
+                        style: const TextStyle(fontSize: 20),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 10),
-                if (_selectedFile != null)
-                  Text(
-                    '선택된 파일: ${_selectedFile!.name}',
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                const SizedBox(height: 20),
+                const Spacer(),
                 Align(
                   alignment: Alignment.bottomRight,
                   child: ElevatedButton(
@@ -181,7 +215,7 @@ class _CalendarPageState extends State<CalendarPage> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text('파일 적용됨: ${_selectedFile!.name}')),
                         );
-                        Navigator.pop(context); // 닫기
+                        Navigator.pop(context);
                       }
                     },
                     child: const Text('적용'),
@@ -190,10 +224,12 @@ class _CalendarPageState extends State<CalendarPage> {
               ],
             ),
           );
-        });
-      },
-    );
-  }
+        },
+      );
+    },
+  );
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -237,4 +273,3 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 }
-
