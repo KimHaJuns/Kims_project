@@ -29,6 +29,7 @@ class CalendarPage extends StatefulWidget {
 }
 
 class _CalendarPageState extends State<CalendarPage> {
+  DateTime? _selectedDay;
   Future<void> _handleFilePick(BuildContext context, void Function(void Function()) setModalState) async {
   final result = await FilePicker.platform.pickFiles(
     type: FileType.any
@@ -45,12 +46,8 @@ class _CalendarPageState extends State<CalendarPage> {
         _selectedFile = pickedFile;
       });
     } else {
-      // ❌ 그 외 확장자는 무시 + 경고 메시지 출력
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('이미지(png, jpg, jpeg) 또는 PDF 파일만 선택할 수 있습니다.'),
-          duration: Duration(seconds: 2),
-        ),
+        const SnackBar(content: Text('이미지 또는 PDF 파일만 선택 가능합니다.')),
       );
     }
   }
@@ -118,33 +115,49 @@ class _CalendarPageState extends State<CalendarPage> {
       final todayEvents = _events[key] ?? [];
 
       days.add(
-        GestureDetector(
-          onTap: () => _addEvent(currentDate),
-          child: Container(
-            margin: const EdgeInsets.all(0.5),
-            padding: const EdgeInsets.all(1),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  '$day',
-                  style: const TextStyle(fontSize: 12),
-                ),
-                ...todayEvents.map((e) => Text(
-                      e,
-                      style: const TextStyle(fontSize: 8, color: Colors.blue),
-                      overflow: TextOverflow.ellipsis,
-                    )),
-              ],
+  GestureDetector(
+    onTap: () {
+      setState(() {
+        _selectedDay = currentDate; // 날짜 선택 저장
+      });
+    },
+    child: Container(
+      margin: const EdgeInsets.all(0.5),
+      padding: const EdgeInsets.all(1),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Stack(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$day',
+                style: const TextStyle(fontSize: 20),
+              ),
+              ...todayEvents.map((e) => Text(
+                    e,
+                    style: const TextStyle(fontSize: 20, color: Colors.blue),
+                    overflow: TextOverflow.ellipsis,
+                  )),
+            ],
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: GestureDetector(
+              onTap: () => _addEvent(currentDate),
+              child: const Icon(Icons.add_circle_outline, size: 25, color: Colors.green),
             ),
           ),
-        ),
-      );
+        ],
+      ),
+    ),
+  ),
+);
     }
-
     return days;
   }
 
@@ -255,6 +268,17 @@ class _CalendarPageState extends State<CalendarPage> {
               ],
             ),
             const SizedBox(height: 8),
+
+            if (_selectedDay != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '선택한 날짜: ${DateFormat('yyyy-MM-dd').format(_selectedDay!)}',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              ...(_events[DateFormat('yyyy-MM-dd').format(_selectedDay!)] ?? []).map(
+                (e) => Text(e, style: const TextStyle(fontSize: 14)),
+              ),
+            ],
             Expanded(
               child: GridView.count(
                 crossAxisCount: 7,
