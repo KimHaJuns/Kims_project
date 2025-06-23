@@ -94,7 +94,7 @@ Widget build(BuildContext context) {
     children: [
     ElevatedButton.icon(
        onPressed: () {
-         pickAndShowImage(context); // <- 이렇게 람다로 감싸야 동작합니다!
+         pickAndShowImage(context);
       },
       icon: const Icon(Icons.add),
       label: const Text("파일 추가"),
@@ -187,7 +187,54 @@ Widget build(BuildContext context) {
             },
           ),
         ),
-      ],
+      ElevatedButton.icon(
+        onPressed: () async {
+          await showDialog(
+            context: context,
+            builder: (context) {
+              final TextEditingController controller = TextEditingController();  // 여기 선언
+              return AlertDialog(
+                title: const Text('일정 추가'),
+                content: TextField(
+                  controller: controller,
+                  decoration: const InputDecoration(
+                    labelText: '정보 입력',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('취소'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      final input = controller.text.trim();
+                      if (input.isNotEmpty) {
+                        setState(() {
+                          if (events[selectedDay] != null) {
+                            events[selectedDay]!.add(Event(input));
+                          } else {
+                            events[selectedDay] = [Event(input)];
+                          }
+                        });
+                        Navigator.of(context).pop();
+                      }
+                    },
+                    child: const Text('저장'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+        icon: const Icon(Icons.add),
+        label: const Text("일정 추가"),
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ),
+      ),
+    ],
     ),
   );
 }
@@ -195,6 +242,7 @@ Widget build(BuildContext context) {
 }
 
 Future<void> pickAndShowImage(BuildContext context) async {
+  bool showButton = false;
   XFile? selectedImage;
   String status = '이미지를 선택해주세요';
   final ImagePicker picker = ImagePicker();
@@ -210,12 +258,38 @@ Future<void> pickAndShowImage(BuildContext context) async {
         builder: (BuildContext context, StateSetter setState) {
           return Container(
             height: MediaQuery.of(context).size.height * 0.6,
-            width: MediaQuery.of(context).size.width * 0.6,
+            width: MediaQuery.of(context).size.width * 1,
             padding: const EdgeInsets.all(24.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const SizedBox(height: 50),
+                Align(
+                  alignment: Alignment.topRight,
+                  child: IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ),
+                if (showButton)
+                  Align(
+                    alignment: Alignment.bottomRight,
+                    child: TextButton(
+                      child: const Text(
+                        '적용',
+                      ),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        Navigator.of(ctx).push(
+                          MaterialPageRoute(
+                            builder: (context) => const ImageApplyPage(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 10),
                 if (selectedImage != null)
                   CircleAvatar(
                     radius: 70,
@@ -236,6 +310,7 @@ Future<void> pickAndShowImage(BuildContext context) async {
                     final image = await picker.pickImage(source: ImageSource.gallery);
                     if (image != null) {
                       setState(() {
+                        showButton = true;
                         selectedImage = image;
                         status = '이미지가 선택되었습니다.';
                       });
@@ -256,3 +331,29 @@ Future<void> pickAndShowImage(BuildContext context) async {
   );
 }
 
+class ImageApplyPage extends StatelessWidget {
+  const ImageApplyPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('적용할 일정 선택')),
+      body: Center(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Align(
+              alignment: Alignment.topRight,
+              child: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () {
+                  Navigator.of(context).pop(); // 모달 닫기
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
