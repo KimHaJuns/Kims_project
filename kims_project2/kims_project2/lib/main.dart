@@ -5,6 +5,9 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
+import 'dart:convert';
 
 void main() => runApp(const MyApp());
 
@@ -22,6 +25,12 @@ class Event {
 
   @override
   int get hashCode => title.hashCode;
+}
+
+void debugLog(String message) {
+  if (kDebugMode) {
+    print(message);
+  }
 }
 
 DateTime normalizeDate(DateTime date) => DateTime(date.year, date.month, date.day);
@@ -77,7 +86,7 @@ class _CalendarPageState extends State<CalendarPage> {
               ElevatedButton.icon(
                 onPressed: () => pickAndShowImage(context),
                 icon: const Icon(Icons.image),
-                label: const Text("파일 추가"),
+                label: const Text("사진 입력"),
               ),
               ElevatedButton.icon(
                 onPressed: () => showAddEventDialog(context),
@@ -166,6 +175,129 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   void showAddEventDialog(BuildContext context) {
+    void showMonthDayPickerDialog(
+        BuildContext context,
+        DateTime initialDate,
+        void Function(DateTime) onDatePicked,
+        ) {
+      int selectedYear = initialDate.year;
+      int selectedMonth = initialDate.month;
+      int selectedDay = initialDate.day;
+
+      DateTime getLastDate(int year, int month) {
+        if (month == 12) {
+          return DateTime(year + 1, 1, 0);
+        } else {
+          return DateTime(year, month + 1, 0);
+        }
+      }
+
+      DateTime clampDate(DateTime date, DateTime min, DateTime max) {
+        if (date.isBefore(min)) return min;
+        if (date.isAfter(max)) return max;
+        return date;
+      }
+
+      showDialog(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('월-일 선택'),
+              content: SizedBox(
+                width: 500,
+                height: 400,
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        DropdownButton<int>(
+                          value: selectedYear,
+                          items: List.generate(21, (index) => 2015 + index)
+                              .map((year) => DropdownMenuItem(
+                            value: year,
+                            child: Text('$year 년'),
+                          ))
+                              .toList(),
+                          onChanged: (year) {
+                            if (year == null) return;
+                            setState(() {
+                              selectedYear = year;
+                              // 변경 후 유효한 일자 최대값으로 조정
+                              int maxDay = getLastDate(selectedYear, selectedMonth).day;
+                              if (selectedDay > maxDay) selectedDay = maxDay;
+                            });
+                          },
+                        ),
+                        const SizedBox(width: 20),
+                        DropdownButton<int>(
+                          value: selectedMonth,
+                          items: List.generate(12, (i) => i + 1)
+                              .map((month) => DropdownMenuItem(
+                            value: month,
+                            child: Text('$month 월'),
+                          ))
+                              .toList(),
+                          onChanged: (month) {
+                            if (month == null) return;
+                            setState(() {
+                              selectedMonth = month;
+                              int maxDay = getLastDate(selectedYear, selectedMonth).day;
+                              if (selectedDay > maxDay) selectedDay = maxDay;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: Builder(
+                        builder: (context) {
+                          DateTime firstDate = DateTime(selectedYear, selectedMonth, 1);
+                          DateTime lastDate = getLastDate(selectedYear, selectedMonth);
+                          DateTime initDate =
+                          DateTime(selectedYear, selectedMonth, selectedDay);
+
+                          // initialDate가 firstDate ~ lastDate 범위를 벗어나면 clamp 한다.
+                          initDate = clampDate(initDate, firstDate, lastDate);
+
+                          return CalendarDatePicker(
+                            initialDate: initDate,
+                            firstDate: firstDate,
+                            lastDate: lastDate,
+                            onDateChanged: (date) {
+                              setState(() {
+                                selectedDay = date.day;
+                              });
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('취소'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    int maxDay = getLastDate(selectedYear, selectedMonth).day;
+                    int safeDay = selectedDay.clamp(1, maxDay);
+                    onDatePicked(DateTime(selectedYear, selectedMonth, safeDay));
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('선택'),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    }
     DateTime selectedDate = DateTime.now();
     final controller = TextEditingController();
 
@@ -188,27 +320,22 @@ class _CalendarPageState extends State<CalendarPage> {
               Row(
                 children: [
                   const Text('선택 날짜:'),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${selectedDate.year}-${selectedDate.month}-${selectedDate.day}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '${selectedDate.year}-${selectedDate.month}-${selectedDate.day}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis
+                    ),
                   ),
-                  const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.calendar_today),
-                    onPressed: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: selectedDate,
-                        firstDate: DateTime(2015),
-                        lastDate: DateTime(2035),
-                        locale: const Locale('ko', 'KR'),
-                      );
-                      if (picked != null) {
+                    onPressed: () {
+                      showMonthDayPickerDialog(context, selectedDate, (picked) {
                         setState(() => selectedDate = picked);
-                      }
+                      });
                     },
-                  )
+                  ),
                 ],
               )
             ],
@@ -234,6 +361,44 @@ class _CalendarPageState extends State<CalendarPage> {
         ),
       ),
     );
+  }
+}
+
+// 예: 이미지 파일과 함께 POST 요청 보내는 함수
+Future<List<dynamic>?> uploadImageAndGetList(File imageFile) async {
+  var uri = Uri.parse('https://your-server.com/upload');
+
+  var request = http.MultipartRequest('POST', uri);
+
+  // 이미지 파일 추가 ('image'는 서버에서 받는 필드명)
+  request.files.add(await http.MultipartFile.fromPath('image', imageFile.path));
+
+  try {
+    // 요청 보내기
+    var streamedResponse = await request.send();
+
+    // 스트림 응답을 Response로 변환
+    var response = await http.Response.fromStream(streamedResponse);
+
+    if (response.statusCode == 200) {
+      // 서버에서 JSON 형태로 리스트를 응답한다고 가정
+      final data = jsonDecode(response.body);
+
+      if (data is List) {
+        return data; // JSON 리스트 반환
+      } else if (data is Map && data['list'] is List) {
+        return data['list']; // 예: { "list": [...] } 형태일 때
+      } else {
+        debugLog('응답 데이터가 리스트가 아닙니다.');
+        return null;
+      }
+    } else {
+      debugLog('서버 오류: ${response.statusCode}');
+      return null;
+    }
+  } catch (e) {
+    debugLog('요청 실패: $e');
+    return null;
   }
 }
 
@@ -269,14 +434,23 @@ Future<void> pickAndShowImage(BuildContext context) async {
                 alignment: Alignment.bottomRight,
                 child: TextButton(
                   child: const Text('적용'),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const ImageApplyPage()),
-                    );
-                  },
+                    onPressed: () async {
+                      if (selectedImage == null) {
+                        debugLog('이미지가 선택되지 않았습니다.');
+                        return;
+                      }
+
+                      File file = File(selectedImage!.path);
+                      final list = await uploadImageAndGetList(file);
+
+                      if(list == null) {
+                        debugLog('리스트를 받지 못했습니다.');
+                      }
+                    }
+
                 ),
               ),
+
             const SizedBox(height: 10),
             if (selectedImage != null)
               CircleAvatar(
@@ -310,13 +484,6 @@ Future<void> pickAndShowImage(BuildContext context) async {
 
 
 
-class ImageApplyPageState extends StatefulWidget {
-  const ImageApplyPageState({super.key});
-
-  @override
-  State<ImageApplyPage> createState() => _ImageApplyPageState();
-}
-
 class ImageApplyPage extends StatefulWidget {
   const ImageApplyPage({super.key});
 
@@ -324,18 +491,50 @@ class ImageApplyPage extends StatefulWidget {
   State<ImageApplyPage> createState() => _ImageApplyPageState();
 }
 
-class _ImageApplyPageState extends State<ImageApplyPage> {
-  List<Map<String, String>> items = [
-    {'id': '1', 'title': '회의', 'date': '2025-07-15'},
-    {'id': '2', 'title': '약속', 'date': '2025-07-16'},
-  ];
+class ImageApplyPages extends StatefulWidget {
+  final List<dynamic>? initialItems;
 
+  const ImageApplyPages({super.key, this.initialItems});
+
+  @override
+  State<ImageApplyPages> createState() => _ImageApplyPagesState(); // ✅ 이름 일치
+}
+
+class _ImageApplyPagesState extends State<ImageApplyPages> {
+  List<Map<String, String>> items = [];
   List<bool> checked = [];
 
   @override
   void initState() {
     super.initState();
-    checked = List.generate(items.length, (_) => false);
+
+    if (widget.initialItems != null) {
+      items = widget.initialItems!.map<Map<String, String>>((e) {
+        final map = Map<String, String>.from(e);
+        return {
+          'id': map['id'] ?? '',
+          'title': map['title'] ?? '',
+          'date': map['date'] ?? '',
+        };
+      }).toList();
+
+      checked = List.generate(items.length, (_) => false);
+    }
+  }
+
+  void updateItemsFromServer(List<dynamic> serverList) {
+    setState(() {
+      items = serverList.map<Map<String, String>>((e) {
+        final map = Map<String, String>.from(e);
+        return {
+          'id': map['id'] ?? '',
+          'title': map['title'] ?? '',
+          'date': map['date'] ?? '',
+        };
+      }).toList();
+
+      checked = List.generate(items.length, (_) => false);
+    });
   }
 
   DateTime normalizeDate(DateTime date) => DateTime(date.year, date.month, date.day);
@@ -363,7 +562,6 @@ class _ImageApplyPageState extends State<ImageApplyPage> {
             ),
             const SizedBox(height: 16),
 
-            // ✅ 적용 버튼 표시 (조건부)
             if (checked.contains(true))
               Align(
                 alignment: Alignment.centerRight,
@@ -379,11 +577,11 @@ class _ImageApplyPageState extends State<ImageApplyPage> {
                           events.putIfAbsent(date, () => []);
                           events[date]!.add(Event(title));
                         } catch (e) {
-                          // 날짜 파싱 실패 시 무시하거나 로그 출력
+                          // 무시 또는 로그 출력
                         }
                       }
                     }
-                    Navigator.of(context).pop(); // 페이지 닫기
+                    Navigator.of(context).pop();
                   },
                   child: const Text('적용'),
                 ),
@@ -464,10 +662,33 @@ class _ImageApplyPageState extends State<ImageApplyPage> {
                           IconButton(
                             icon: const Icon(Icons.delete),
                             onPressed: () {
-                              setState(() {
-                                items.removeAt(index);
-                                checked.removeAt(index);
-                              });
+                              showDialog(
+                                context: context,
+                                builder: (BuildContext context) {
+                                  return AlertDialog(
+                                    title: const Text("삭제 확인"),
+                                    content: const Text("정말 삭제하시겠습니까?"),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.of(context).pop();
+                                        },
+                                        child: const Text("취소"),
+                                      ),
+                                      TextButton(
+                                        onPressed: () {
+                                          setState(() {
+                                            items.removeAt(index);
+                                            checked.removeAt(index);
+                                          });
+                                          Navigator.of(context).pop();
+                                        },
+                                        child: const Text("삭제"),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
                             },
                           ),
                         ],
