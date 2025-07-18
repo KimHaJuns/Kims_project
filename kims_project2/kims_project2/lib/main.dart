@@ -136,26 +136,106 @@ class _CalendarPageState extends State<CalendarPage> {
                   final eventsForDay = getEventsForDay(normDate);
                   showModalBottomSheet(
                     context: context,
-                    builder: (ctx) => Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: SizedBox(
-                        width: 500,
-                        height: 600,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "${normDate.year}년 ${normDate.month}월 ${normDate.day}일",
-                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    builder: (ctx) {
+                      return StatefulBuilder(
+                        builder: (context, setModalState) {
+                          return Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: SizedBox(
+                              width: 500,
+                              height: 600,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "${normDate.year}년 ${normDate.month}월 ${normDate.day}일",
+                                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  if (eventsForDay.isEmpty)
+                                    const Text("등록된 일정이 없습니다."),
+                                  ...eventsForDay.asMap().entries.map((entry) {
+                                    int index = entry.key;
+                                    Event event = entry.value;
+                                    final controller = TextEditingController(text: event.title);
+
+                                    return Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Expanded(child: Text("• ${event.title}")),
+                                        IconButton(
+                                          icon: const Icon(Icons.edit),
+                                          onPressed: () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) {
+                                                return AlertDialog(
+                                                  title: const Text('일정 수정'),
+                                                  content: TextField(controller: controller),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () => Navigator.pop(context),
+                                                      child: const Text('취소'),
+                                                    ),
+                                                    ElevatedButton(
+                                                      onPressed: () {
+                                                        setState(() {
+                                                          events[normDate]![index] = Event(controller.text);
+                                                        });
+                                                        setModalState(() {}); // 모달 갱신
+                                                        Navigator.pop(context);
+                                                      },
+                                                      child: const Text('저장'),
+                                                    ),
+                                                  ],
+                                                );
+                                              },
+                                            );
+                                          },
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete),
+                                          onPressed: () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) {
+                                                return AlertDialog(
+                                                  title: const Text('삭제 확인'),
+                                                  content: const Text('정말 삭제하시겠습니까?'),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () => Navigator.pop(context),
+                                                      child: const Text('취소'),
+                                                    ),
+                                                    ElevatedButton(
+                                                      onPressed: () {
+                                                        setState(() {
+                                                          events[normDate]!.removeAt(index);
+                                                          if (events[normDate]!.isEmpty) {
+                                                            events.remove(normDate);
+                                                          }
+                                                        });
+                                                        setModalState(() {}); // 모달 갱신
+                                                        Navigator.pop(context);
+                                                      },
+                                                      child: const Text('삭제'),
+                                                    ),
+                                                  ],
+                                                );
+                                              },
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                    );
+                                  })
+                                ],
+                              ),
                             ),
-                            const SizedBox(height: 12),
-                            ...eventsForDay.map((e) => Text("• ${e.title}")),
-                            if (eventsForDay.isEmpty)
-                              const Text("등록된 일정이 없습니다."),
-                          ],
-                        ),
-                      ),
-                    ),
+                          );
+                        },
+                      );
+                    },
                   );
                   _lastPressedTimestamp = 0;
                 } else {
@@ -485,22 +565,15 @@ Future<void> pickAndShowImage(BuildContext context) async {
 
 
 class ImageApplyPage extends StatefulWidget {
-  const ImageApplyPage({super.key});
+  final List<dynamic>? initialItems;
+
+  const ImageApplyPage({super.key, this.initialItems});
 
   @override
   State<ImageApplyPage> createState() => _ImageApplyPageState();
 }
 
-class ImageApplyPages extends StatefulWidget {
-  final List<dynamic>? initialItems;
-
-  const ImageApplyPages({super.key, this.initialItems});
-
-  @override
-  State<ImageApplyPages> createState() => _ImageApplyPagesState(); // ✅ 이름 일치
-}
-
-class _ImageApplyPagesState extends State<ImageApplyPages> {
+class _ImageApplyPageState extends State<ImageApplyPage> {
   List<Map<String, String>> items = [];
   List<bool> checked = [];
 
@@ -577,7 +650,7 @@ class _ImageApplyPagesState extends State<ImageApplyPages> {
                           events.putIfAbsent(date, () => []);
                           events[date]!.add(Event(title));
                         } catch (e) {
-                          // 무시 또는 로그 출력
+                          // 오류 무시 또는 로그 출력 가능
                         }
                       }
                     }
