@@ -265,23 +265,28 @@ class _CalendarPageState extends State<CalendarPage> {
       int selectedDay = initialDate.day;
 
       DateTime getLastDate(int year, int month) {
-        if (month == 12) {
-          return DateTime(year + 1, 1, 0);
-        } else {
-          return DateTime(year, month + 1, 0);
-        }
-      }
-
-      DateTime clampDate(DateTime date, DateTime min, DateTime max) {
-        if (date.isBefore(min)) return min;
-        if (date.isAfter(max)) return max;
-        return date;
+        return (month == 12)
+            ? DateTime(year + 1, 1, 0)
+            : DateTime(year, month + 1, 0);
       }
 
       showDialog(
         context: context,
         builder: (context) => StatefulBuilder(
           builder: (context, setState) {
+            final firstDate = DateTime(selectedYear, selectedMonth, 1);
+            final lastDate = getLastDate(selectedYear, selectedMonth);
+
+            // 🛠 초기 날짜 범위 보정
+            DateTime initDate = DateTime(selectedYear, selectedMonth, selectedDay);
+            if (initDate.isBefore(firstDate)) {
+              initDate = firstDate;
+              selectedDay = initDate.day;
+            } else if (initDate.isAfter(lastDate)) {
+              initDate = lastDate;
+              selectedDay = initDate.day;
+            }
+
             return AlertDialog(
               title: const Text('월-일 선택'),
               content: SizedBox(
@@ -294,18 +299,14 @@ class _CalendarPageState extends State<CalendarPage> {
                       children: [
                         DropdownButton<int>(
                           value: selectedYear,
-                          items: List.generate(21, (index) => 2015 + index)
-                              .map((year) => DropdownMenuItem(
-                            value: year,
-                            child: Text('$year 년'),
-                          ))
+                          items: List.generate(21, (i) => 2015 + i)
+                              .map((y) => DropdownMenuItem(value: y, child: Text('$y 년')))
                               .toList(),
-                          onChanged: (year) {
-                            if (year == null) return;
+                          onChanged: (y) {
+                            if (y == null) return;
                             setState(() {
-                              selectedYear = year;
-                              // 변경 후 유효한 일자 최대값으로 조정
-                              int maxDay = getLastDate(selectedYear, selectedMonth).day;
+                              selectedYear = y;
+                              final maxDay = getLastDate(selectedYear, selectedMonth).day;
                               if (selectedDay > maxDay) selectedDay = maxDay;
                             });
                           },
@@ -314,16 +315,13 @@ class _CalendarPageState extends State<CalendarPage> {
                         DropdownButton<int>(
                           value: selectedMonth,
                           items: List.generate(12, (i) => i + 1)
-                              .map((month) => DropdownMenuItem(
-                            value: month,
-                            child: Text('$month 월'),
-                          ))
+                              .map((m) => DropdownMenuItem(value: m, child: Text('$m 월')))
                               .toList(),
-                          onChanged: (month) {
-                            if (month == null) return;
+                          onChanged: (m) {
+                            if (m == null) return;
                             setState(() {
-                              selectedMonth = month;
-                              int maxDay = getLastDate(selectedYear, selectedMonth).day;
+                              selectedMonth = m;
+                              final maxDay = getLastDate(selectedYear, selectedMonth).day;
                               if (selectedDay > maxDay) selectedDay = maxDay;
                             });
                           },
@@ -332,26 +330,14 @@ class _CalendarPageState extends State<CalendarPage> {
                     ),
                     const SizedBox(height: 16),
                     Expanded(
-                      child: Builder(
-                        builder: (context) {
-                          DateTime firstDate = DateTime(selectedYear, selectedMonth, 1);
-                          DateTime lastDate = getLastDate(selectedYear, selectedMonth);
-                          DateTime initDate =
-                          DateTime(selectedYear, selectedMonth, selectedDay);
-
-                          // initialDate가 firstDate ~ lastDate 범위를 벗어나면 clamp 한다.
-                          initDate = clampDate(initDate, firstDate, lastDate);
-
-                          return CalendarDatePicker(
-                            initialDate: initDate,
-                            firstDate: firstDate,
-                            lastDate: lastDate,
-                            onDateChanged: (date) {
-                              setState(() {
-                                selectedDay = date.day;
-                              });
-                            },
-                          );
+                      child: CalendarDatePicker(
+                        initialDate: initDate,
+                        firstDate: firstDate,
+                        lastDate: lastDate,
+                        onDateChanged: (date) {
+                          setState(() {
+                            selectedDay = date.day;
+                          });
                         },
                       ),
                     ),
@@ -365,9 +351,8 @@ class _CalendarPageState extends State<CalendarPage> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    int maxDay = getLastDate(selectedYear, selectedMonth).day;
-                    int safeDay = selectedDay.clamp(1, maxDay);
-                    onDatePicked(DateTime(selectedYear, selectedMonth, safeDay));
+                    final picked = DateTime(selectedYear, selectedMonth, selectedDay);
+                    onDatePicked(picked);
                     Navigator.of(context).pop();
                   },
                   child: const Text('선택'),
@@ -446,7 +431,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
 // 예: 이미지 파일과 함께 POST 요청 보내는 함수
 Future<List<dynamic>?> uploadImageAndGetList(File imageFile) async {
-  var uri = Uri.parse('https://your-server.com/upload');
+  var uri = Uri.parse('https://your-server.com/upload'); //주소 변경 필요.
 
   var request = http.MultipartRequest('POST', uri);
 
